@@ -1,0 +1,158 @@
+### Примечание (в случае добавления новых адресов в variables): поправить в кластере configmap у coredns (блок hosts)
+
+stages:
+  - "Dev"
+  - "Stage"
+
+variables:
+  DFCN: $CI_PROJECT_NAME
+  BRANCH: $CI_COMMIT_REF_NAME
+  COMTAG: $CI_COMMIT_SHORT_SHA
+
+build:dev:
+  stage: "Dev"
+  needs: []
+  when: on_success
+  variables:
+    REACT_APP_DDC_INFO_SERVICE_URL: https://fb-info-core-banking.colvir.ru
+    REACT_APP_DDC_ROUTER_SERVICE_URL: https://fb-router-core-banking.colvir.ru
+    REACT_APP_BPM_SERVICE_URL: https://fb-bpm-core-banking.colvir.ru
+    REACT_APP_BPM_ENGINE_REST_URL: https://fb-bpm-core-banking.colvir.ru/engine-rest
+    REACT_APP_FILE_STORAGE_SERVICE_URL: https://fb-file-storage-core-banking.colvir.ru
+    REACT_APP_GATEWAY_SERVICES_URL: https://fb-gateway-core-banking.colvir.ru
+    REACT_APP_KEYCLOAK_SERVICE_URL: https://fb-keycloak-core-banking.colvir.ru
+    REACT_APP_JSREPORT_SERVICE_URL: https://fb-jsreport-core-banking.colvir.ru
+    REACT_APP_REPORT_SERVICE_URL: https://fb-report-core-banking.colvir.ru
+    REACT_APP_SYSEVN_SERVICE_URL: wss://fb-sysevn-core-banking.colvir.ru
+    REDIS_HOST: redis-master.fortebank
+    REDIS_PORT: 6379
+    SERVICE_PORT: 3002
+  before_script:
+    - docker rm -f $DFCN-build 2> /dev/null
+    - sleep 5s
+    - docker run -i -d --privileged --name $DFCN-build nexus.colvir.ru/df-build:latest > /dev/null 2>&1 || exit_code=0
+  script:
+    - export
+    - echo "export DFURL=${CI_PROJECT_URL#*//}" > build.env
+    - echo "export DFCN=$DFCN" >> build.env
+    - echo "export BRANCH=$BRANCH" >> build.env
+    - echo "export COMTAG=$COMTAG-dev" >> build.env
+    - echo "export REACT_APP_DDC_INFO_SERVICE_URL=$REACT_APP_DDC_INFO_SERVICE_URL" >> build.env
+    - echo "export REACT_APP_DDC_ROUTER_SERVICE_URL=$REACT_APP_DDC_ROUTER_SERVICE_URL" >> build.env
+    - echo "export REACT_APP_BPM_SERVICE_URL=$REACT_APP_BPM_SERVICE_URL" >> build.env
+    - echo "export REACT_APP_BPM_ENGINE_REST_URL=$REACT_APP_BPM_ENGINE_REST_URL" >> build.env
+    - echo "export REACT_APP_FILE_STORAGE_SERVICE_URL=$REACT_APP_FILE_STORAGE_SERVICE_URL" >> build.env
+    - echo "export REACT_APP_GATEWAY_SERVICES_URL=$REACT_APP_GATEWAY_SERVICES_URL" >> build.env
+    - echo "export REACT_APP_KEYCLOAK_SERVICE_URL=$REACT_APP_KEYCLOAK_SERVICE_URL" >> build.env
+    - echo "export REACT_APP_JSREPORT_SERVICE_URL=$REACT_APP_JSREPORT_SERVICE_URL" >> build.env
+    - echo "export REACT_APP_REPORT_SERVICE_URL=$REACT_APP_REPORT_SERVICE_URL" >> build.env
+    - echo "export REACT_APP_SYSEVN_SERVICE_URL=$REACT_APP_SYSEVN_SERVICE_URL" >> build.env
+    - echo "export REDIS_HOST=$REDIS_HOST" >> build.env
+    - echo "export REDIS_PORT=$REDIS_PORT" >> build.env
+    - echo "export SERVICE_PORT=$SERVICE_PORT" >> build.env
+    - docker cp build.env $DFCN-build:/DF/
+    - docker exec -i $DFCN-build bash /DF/scripts/buildgit_v4web-node.sh
+  allow_failure: false
+  tags:
+    - dfdemo-156
+
+deploy:dev:
+  stage: "Dev"
+  needs:
+    - job: build:dev
+  when: on_success
+  variables:
+    NAMESPACE: fortebank
+    SECRET: colvir-nexus-registry
+    HOST: dc_v4
+    USER: administrator
+    DIR: dev
+  before_script:
+    - docker run -i -d --privileged --name $DFCN-build nexus.colvir.ru/df-build:latest > /dev/null 2>&1 || exit_code=0
+  script:
+    - export
+    - echo "export DFURL=${CI_PROJECT_URL#*//}" > generated.env
+    - echo "export DFCN=$DFCN" >> generated.env
+    - echo "export BRANCH=$BRANCH" >> generated.env
+    - echo "export COMTAG=$COMTAG-dev" >> generated.env
+    - echo "export NAMESPACE=$NAMESPACE" >> generated.env
+    - echo "export SECRET=$SECRET" >> generated.env
+    - docker cp generated.env $DFCN-build:/DF/
+    - docker exec -i $DFCN-build bash /DF/scripts/generate_v4web-node.sh
+    - docker exec -i $DFCN-build ansible-playbook /DF/playbooks/v4node-deploy-k8s.yaml --extra-vars "host=$HOST user=$USER dfcn=$DFCN dfdir=$DIR-$DFCN"
+  tags:
+    - dfdemo-156
+
+build:stage:
+  stage: "Stage"
+  needs: []
+  when: manual
+  variables:
+    REACT_APP_DDC_INFO_SERVICE_URL: https://stage-info-core-banking.colvir.ru
+    REACT_APP_DDC_ROUTER_SERVICE_URL: https://stage-router-core-banking.colvir.ru
+    REACT_APP_BPM_SERVICE_URL: https://stage-bpm-core-banking.colvir.ru
+    REACT_APP_BPM_ENGINE_REST_URL: https://stage-bpm-core-banking.colvir.ru/engine-rest
+    REACT_APP_FILE_STORAGE_SERVICE_URL: https://stage-file-storage-core-banking.colvir.ru
+    REACT_APP_GATEWAY_SERVICES_URL: https://stage-gateway-core-banking.colvir.ru
+    REACT_APP_KEYCLOAK_SERVICE_URL: https://stage-keycloak-core-banking.colvir.ru
+    REACT_APP_JSREPORT_SERVICE_URL: https://stage-jsreport-core-banking.colvir.ru
+    REACT_APP_REPORT_SERVICE_URL: https://stage-report-core-banking.colvir.ru
+    REACT_APP_SYSEVN_SERVICE_URL: wss://stage-sysevn-core-banking.colvir.ru
+    REDIS_HOST: redis-master.stage
+    REDIS_PORT: 6379
+    SERVICE_PORT: 3002
+  before_script:
+    - docker rm -f $DFCN-build 2> /dev/null
+    - sleep 5s
+    - docker run -i -d --privileged --name $DFCN-build nexus.colvir.ru/df-build:latest > /dev/null 2>&1 || exit_code=0
+  script:
+    - export
+    - echo "export DFURL=${CI_PROJECT_URL#*//}" > build.env
+    - echo "export DFCN=$DFCN" >> build.env
+    - echo "export BRANCH=$BRANCH" >> build.env
+    - echo "export COMTAG=$COMTAG-stage" >> build.env
+    - echo "export REACT_APP_DDC_INFO_SERVICE_URL=$REACT_APP_DDC_INFO_SERVICE_URL" >> build.env
+    - echo "export REACT_APP_DDC_ROUTER_SERVICE_URL=$REACT_APP_DDC_ROUTER_SERVICE_URL" >> build.env
+    - echo "export REACT_APP_BPM_SERVICE_URL=$REACT_APP_BPM_SERVICE_URL" >> build.env
+    - echo "export REACT_APP_BPM_ENGINE_REST_URL=$REACT_APP_BPM_ENGINE_REST_URL" >> build.env
+    - echo "export REACT_APP_FILE_STORAGE_SERVICE_URL=$REACT_APP_FILE_STORAGE_SERVICE_URL" >> build.env
+    - echo "export REACT_APP_GATEWAY_SERVICES_URL=$REACT_APP_GATEWAY_SERVICES_URL" >> build.env
+    - echo "export REACT_APP_KEYCLOAK_SERVICE_URL=$REACT_APP_KEYCLOAK_SERVICE_URL" >> build.env
+    - echo "export REACT_APP_JSREPORT_SERVICE_URL=$REACT_APP_JSREPORT_SERVICE_URL" >> build.env
+    - echo "export REACT_APP_REPORT_SERVICE_URL=$REACT_APP_REPORT_SERVICE_URL" >> build.env
+    - echo "export REACT_APP_SYSEVN_SERVICE_URL=$REACT_APP_SYSEVN_SERVICE_URL" >> build.env
+    - echo "export REDIS_HOST=$REDIS_HOST" >> build.env
+    - echo "export REDIS_PORT=$REDIS_PORT" >> build.env
+    - echo "export SERVICE_PORT=$SERVICE_PORT" >> build.env
+    - docker cp build.env $DFCN-build:/DF/
+    - docker exec -i $DFCN-build bash /DF/scripts/buildgit_v4web-node.sh
+  allow_failure: false
+  tags:
+    - v4web-shell
+
+deploy:stage:
+  stage: "Stage"
+  needs:
+    - job: build:stage
+  when: on_success
+  variables:
+    NAMESPACE: stage
+    SECRET: colvir-nexus-registry
+    HOST: dc_v4
+    USER: administrator
+    DIR: stage
+  before_script:
+    - docker run -i -d --privileged --name $DFCN-build nexus.colvir.ru/df-build:latest > /dev/null 2>&1 || exit_code=0
+  script:
+    - export
+    - echo "export DFURL=${CI_PROJECT_URL#*//}" > generated.env
+    - echo "export DFCN=$DFCN" >> generated.env
+    - echo "export BRANCH=$BRANCH" >> generated.env
+    - echo "export COMTAG=$COMTAG-stage" >> generated.env
+    - echo "export NAMESPACE=$NAMESPACE" >> generated.env
+    - echo "export SECRET=$SECRET" >> generated.env
+    - docker cp generated.env $DFCN-build:/DF/
+    - docker exec -i $DFCN-build bash /DF/scripts/generate_v4web-node.sh
+    - docker exec -i $DFCN-build ansible-playbook /DF/playbooks/v4node-deploy-k8s.yaml --extra-vars "host=$HOST user=$USER dfcn=$DFCN dfdir=$DIR-$DFCN"
+  tags:
+    - v4web-shell

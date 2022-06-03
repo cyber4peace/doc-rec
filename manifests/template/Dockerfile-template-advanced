@@ -1,0 +1,47 @@
+# # # # # # # # # DF: 1-st stage
+
+FROM node:16-alpine AS builder
+
+ENV DDC_INFO_SERVICE_URL=$DDC_INFO_SERVICE_URL \
+    DDC_ROUTER_SERVICE_URL=$DDC_ROUTER_SERVICE_URL \
+    FILE_STORAGE_SERVICE_URL=$FILE_STORAGE_SERVICE_URL \
+    KEYCLOAK_SERVICE_URL=$KEYCLOAK_SERVICE_URL \
+    KEYCLOAK_REALM=$KEYCLOAK_REALM \
+    KEYCLOAK_CLIENT_ID=$KEYCLOAK_CLIENT_ID \
+    JSREPORT_SERVICE_URL=$JSREPORT_SERVICE_URL \
+    REDIS_HOST=$REDIS_HOST \
+    REDIS_PORT=$REDIS_PORT \
+    NODE_PORT=$NODE_PORT
+
+RUN apk add --no-cache git
+
+RUN git clone --branch $BRANCH https://$NEXUS_LOGIN:$NEXUS_PASS@gitlab.colvir.ru/v4web/colvir-ms/nodejs/report.git /git
+
+WORKDIR /git
+RUN git submodule init && git submodule update
+RUN yarn install --development
+RUN yarn run build
+
+# # # # # # # # # DF: 2-nd stage
+
+FROM node:16-alpine
+
+ENV DDC_INFO_SERVICE_URL=$DDC_INFO_SERVICE_URL \
+    DDC_ROUTER_SERVICE_URL=$DDC_ROUTER_SERVICE_URL \
+    FILE_STORAGE_SERVICE_URL=$FILE_STORAGE_SERVICE_URL \
+    KEYCLOAK_SERVICE_URL=$KEYCLOAK_SERVICE_URL \
+    KEYCLOAK_REALM=$KEYCLOAK_REALM \
+    KEYCLOAK_CLIENT_ID=$KEYCLOAK_CLIENT_ID \
+    JSREPORT_SERVICE_URL=$JSREPORT_SERVICE_URL \
+    REDIS_HOST=$REDIS_HOST \
+    REDIS_PORT=$REDIS_PORT \
+    NODE_PORT=$NODE_PORT
+
+COPY --from=builder /git/package.json /usr/src/app/package.json
+
+WORKDIR /usr/src/app
+RUN yarn install --production
+
+COPY --from=builder /git/dist /usr/src/app/dist
+
+CMD ["node", "dist/main"]
