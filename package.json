@@ -35,6 +35,7 @@
     "fastify-swagger": "^5.0.0",
     "form-data": "^4.0.0",
     "js-file-download": "^0.4.12",
+    "mrz": "^3.1.4",
     "react-native-dom-parser": "^1.5.3",
     "reflect-metadata": "^0.1.13",
     "rimraf": "^3.0.2",
